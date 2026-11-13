@@ -1,0 +1,4 @@
+# Default reviewers for every path.  Replace with an organisation team if the
+# repository is given one, and enable "Require review from Code Owners" in the
+# branch protection rule for main.
+* @ejspence

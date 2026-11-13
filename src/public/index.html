@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i18n-title="app.title">MCP API tokens</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; max-width: 840px; margin: 3rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.4rem; }
+  .card { border: 1px solid #8884; border-radius: 8px; padding: 1rem 1.25rem; margin: 1rem 0; }
+  .btn { display: inline-block; padding: .5rem 1rem; border-radius: 6px; border: 1px solid #8888; cursor: pointer; text-decoration: none; font-size: .95rem; }
+  .btn-primary { background: #2d6cdf; color: #fff; border-color: #2d6cdf; }
+  .btn-danger { color: #c0392b; }
+  pre.token { background: #0002; padding: .75rem; border-radius: 6px; overflow-x: auto; word-break: break-all; white-space: pre-wrap; font-size: .8rem; }
+  .row { display: flex; gap: .5rem; align-items: center; justify-content: space-between; }
+  .muted { color: #888; font-size: .85rem; }
+  select, input { padding: .45rem; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { text-align: left; padding: .4rem .3rem; border-bottom: 1px solid #8882; }
+  header.top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  header.top h1 { margin: 0; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1 data-i18n="app.title">MCP API tokens</h1>
+  <button class="btn" id="lang-toggle" title="Switch language / Changer la langue">FR</button>
+</header>
+<p class="muted" data-i18n="app.intro">Sign in with your account to issue per-server API tokens for the MCP servers this service fronts. Each token is bound to you and to a single server.</p>
+
+<div id="signed-out" style="display:none">
+  <a class="btn btn-primary" href="/login" data-i18n="signin">Sign in with Alliance</a>
+</div>
+
+<div id="signed-in" style="display:none">
+  <div class="card">
+    <div class="row">
+      <span><strong id="who"></strong></span>
+      <a class="btn" href="/logout" data-i18n="signout">Sign out</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="issue.title">Issue a token</h2>
+    <label><span data-i18n="service">Service</span>
+      <select id="service"></select>
+    </label>
+    <p class="muted" id="service-info" style="margin:.35rem 0 1rem"></p>
+    <label><span data-i18n="lifetime">Lifetime (days)</span>
+      <input id="ttl" type="number" min="1" value="30" style="width:5rem">
+    </label>
+    <br><br>
+    <label><span data-i18n="token.name">Name (optional)</span>
+      <input id="name" type="text" maxlength="64" style="width:16rem">
+    </label>
+    <br><br>
+    <button class="btn btn-primary" id="issue" data-i18n="issue">Issue token</button>
+    <div id="new-token" style="display:none">
+      <p class="muted"><span data-i18n="new.hint">Copy it now — it will not be shown again. It expires on </span><span id="new-exp"></span>.</p>
+      <pre class="token" id="new-token-text"></pre>
+      <button class="btn" id="copy" data-i18n="copy">Copy to clipboard</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="servers.title">Available servers</h2>
+    <p class="muted" data-i18n="servers.intro">Each token unlocks one server; point your MCP client at that server's URL.</p>
+    <table>
+      <thead><tr><th data-i18n="servers.th.server">Server</th><th data-i18n="servers.th.description">Description</th><th data-i18n="servers.th.url">URL</th></tr></thead>
+      <tbody id="svc-list"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="tokens.title">Your tokens</h2>
+    <table>
+      <thead><tr><th data-i18n="service">Service</th><th data-i18n="th.name">Name</th><th data-i18n="th.issued">Issued</th><th data-i18n="th.expires">Expires</th><th></th></tr></thead>
+      <tbody id="tok-list"></tbody>
+    </table>
+    <div id="tok-empty" class="muted" style="display:none" data-i18n="tokens.empty">No outstanding tokens.</div>
+  </div>
+
+  <div class="card" id="admin" style="display:none">
+    <h2 data-i18n="admin.title">Admin</h2>
+    <p class="muted" data-i18n="admin.intro">Revoke any user's tokens, or blacklist a user (kills their current tokens and blocks new ones).</p>
+    <label><span data-i18n="admin.lookup">User</span>
+      <input id="admin-sub" type="text" list="admin-users" placeholder="username" style="width:12rem">
+      <datalist id="admin-users"></datalist>
+    </label>
+    <button class="btn btn-primary" id="admin-lookup" data-i18n="admin.lookup.btn">Look up</button>
+    <p class="muted" id="admin-status" style="display:none"></p>
+
+    <table>
+      <thead><tr><th data-i18n="admin.th.sub">User</th><th data-i18n="admin.th.status">Status</th><th></th></tr></thead>
+      <tbody id="admin-blacklist"></tbody>
+    </table>
+
+    <div id="admin-tokens-wrap" style="display:none">
+      <h3 id="admin-tokens-title"></h3>
+      <table>
+        <thead><tr><th data-i18n="service">Service</th><th data-i18n="th.name">Name</th><th data-i18n="th.issued">Issued</th><th data-i18n="th.expires">Expires</th><th></th></tr></thead>
+        <tbody id="admin-tok-list"></tbody>
+      </table>
+      <div id="admin-tok-empty" class="muted" style="display:none" data-i18n="tokens.empty">No outstanding tokens.</div>
+      <p>
+        <button class="btn btn-danger" id="admin-revoke-all" data-i18n="admin.revoke.all">Revoke all tokens</button>
+        <button class="btn btn-danger" id="admin-blacklist" data-i18n="admin.blacklist.btn">Blacklist user</button>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// --- i18n (same pattern as the trillium-chatbot: en/fr, seeded from the
+// OIDC locale claim on login, overridable per session) ---
+const I18N = {
+  en: {
+    "app.title": "MCP API tokens",
+    "app.intro": "Sign in with your account to issue per-server API tokens for the MCP servers this service fronts. Each token is bound to you and to a single server.",
+    "signin": "Sign in with Alliance",
+    "signout": "Sign out",
+    "issue.title": "Issue a token",
+    "service": "Service",
+    "servers.title": "Available servers",
+    "servers.intro": "Each token unlocks one server; point your MCP client at that server's URL.",
+    "servers.th.server": "Server",
+    "servers.th.description": "Description",
+    "servers.th.url": "URL",
+    "lifetime": "Lifetime (days)",
+    "token.name": "Name (optional)",
+    "issue": "Issue token",
+    "new.hint": "Copy it now — it will not be shown again. It expires on ",
+    "copy": "Copy to clipboard",
+    "copied": "Copied!",
+    "tokens.title": "Your tokens",
+    "th.name": "Name",
+    "th.issued": "Issued",
+    "th.expires": "Expires",
+    "tokens.empty": "No outstanding tokens.",
+    "revoke": "Revoke",
+    "issue.failed": "failed to issue token",
+    "admin.title": "Admin",
+    "admin.intro": "Revoke any user's tokens, or blacklist a user (kills their current tokens and blocks new ones).",
+    "admin.lookup": "User",
+    "admin.lookup.btn": "Look up",
+    "admin.th.sub": "User",
+    "admin.th.status": "Status",
+    "admin.blacklisted.yes": "blacklisted",
+    "admin.disabled.yes": "account disabled",
+    "admin.unblacklist": "Unblacklist",
+    "admin.tokens.title": "Tokens issued to",
+    "admin.revoke.all": "Revoke all tokens",
+    "admin.blacklist.btn": "Blacklist user",
+    "admin.action.revoked": "Revoked {n} token(s)",
+    "admin.action.blacklisted": "Blacklisted {u}",
+    "admin.action.unblacklisted": "Unblacklisted {u}",
+    "admin.action.stillDisabled": "Removed the manual blacklist; the account is still disabled",
+    "admin.action.added": " (newly added)",
+    "lang.to.fr": "FR",
+    "lang.to.en": "EN",
+  },
+  fr: {
+    "app.title": "Jetons d'API MCP",
+    "app.intro": "Connectez-vous avec votre compte pour émettre des jetons d'API par serveur pour les serveurs MCP que ce service expose. Chaque jeton est lié à vous et à un seul serveur.",
+    "signin": "Se connecter avec Alliance",
+    "signout": "Se déconnecter",
+    "issue.title": "Émettre un jeton",
+    "service": "Service",
+    "servers.title": "Serveurs disponibles",
+    "servers.intro": "Chaque jeton débloque un serveur; pointez votre client MCP vers l'URL de ce serveur.",
+    "servers.th.server": "Serveur",
+    "servers.th.description": "Description",
+    "servers.th.url": "URL",
+    "lifetime": "Durée de vie (jours)",
+    "token.name": "Nom (facultatif)",
+    "issue": "Émettre le jeton",
+    "new.hint": "Copiez-le maintenant — il ne sera plus affiché. Il expire le ",
+    "copy": "Copier dans le presse-papiers",
+    "copied": "Copié !",
+    "tokens.title": "Vos jetons",
+    "th.name": "Nom",
+    "th.issued": "Émis",
+    "th.expires": "Expire",
+    "tokens.empty": "Aucun jeton en cours.",
+    "revoke": "Révoquer",
+    "issue.failed": "échec de l'émission du jeton",
+    "admin.title": "Administration",
+    "admin.intro": "Révoquez les jetons de n'importe quel utilisateur, ou bloquez un utilisateur (révoque ses jetons en cours et bloque les nouveaux).",
+    "admin.lookup": "Utilisateur",
+    "admin.lookup.btn": "Rechercher",
+    "admin.th.sub": "Utilisateur",
+    "admin.th.status": "Statut",
+    "admin.blacklisted.yes": "bloqué(e)",
+    "admin.disabled.yes": "compte désactivé",
+    "admin.unblacklist": "Débloquer",
+    "admin.tokens.title": "Jetons émis pour",
+    "admin.revoke.all": "Révoquer tous les jetons",
+    "admin.blacklist.btn": "Bloquer l'utilisateur",
+    "admin.action.revoked": "{n} jeton(s) révoqué(s)",
+    "admin.action.blacklisted": "{u} bloqué(e)",
+    "admin.action.unblacklisted": "{u} débloqué(e)",
+    "admin.action.stillDisabled": "Liste noire manuelle retirée; le compte reste désactivé",
+    "admin.action.added": " (nouveau)",
+    "lang.to.fr": "FR",
+    "lang.to.en": "EN",
+  },
+};
+
+let lang = "en";
+let adminSub = "";
+let services = [];
+
+function serviceDescription(s) {
+  return lang === "fr" && s.descriptionFr ? s.descriptionFr : s.description;
+}
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  const dict = I18N[lang] ?? I18N.en;
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const key = el.dataset.i18n;
+    if (dict[key] != null) el.textContent = dict[key];
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    const key = el.dataset.i18nTitle;
+    if (dict[key] != null && el.tagName === "TITLE") document.title = dict[key];
+  });
+  const t = $("lang-toggle");
+  if (t) t.textContent = lang === "en" ? I18N.en["lang.to.fr"] : I18N.fr["lang.to.en"];
+  // refresh dynamic bits that were rendered in the old language
+  const who = $("who");
+  if (who && who._name) who.textContent = who._name;
+  const copy = $("copy");
+  if (copy) copy.textContent = copy.dataset.copied ? dict.copied : dict.copy;
+  // Server names and descriptions come from /api/services, so they are not
+  // covered by the data-i18n pass above.  Re-render them when the page is
+  // signed in and the service list is already loaded.
+  if (services.length) {
+    renderServices();
+    updateServiceInfo();
+  }
+}
+
+$("lang-toggle")?.addEventListener("click", async () => {
+  const next = lang === "en" ? "fr" : "en";
+  lang = next;
+  applyLang();
+  // Persist to the session when signed in (ignore failures while signed out,
+  // where the switch is cosmetic for this page view).
+  try {
+    await fetch("/api/language", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: next }),
+    });
+  } catch { /* signed out — fine */ }
+  if ($("signed-in").style.display === "block") {
+    loadTokens();
+    if ($("admin").style.display === "block") {
+      loadAdminBase();
+      if (adminSub) loadAdminTokens(adminSub);
+    }
+  }
+});
+
+async function refresh() {
+  let session;
+  try {
+    session = await (await fetch("/api/session")).json();
+  } catch { session = null; }
+  if (!session || !session.user) {
+    $("signed-out").style.display = "block";
+    $("signed-in").style.display = "none";
+    applyLang();
+    return;
+  }
+  $("signed-out").style.display = "none";
+  $("signed-in").style.display = "block";
+  if (session.language === "fr") lang = "fr";
+  applyLang();
+  $("who")._name = session.user.username + (session.user.name ? " (" + session.user.name + ")" : "");
+  $("who").textContent = $("who")._name;
+
+  const svcs = await (await fetch("/api/services")).json();
+  services = svcs.services || [];
+  $("service").innerHTML = services
+    .map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
+  updateServiceInfo();
+  renderServices();
+  $("service").addEventListener("change", updateServiceInfo);
+
+  await loadTokens();
+
+  $("admin").style.display = session.isAdmin ? "block" : "none";
+  if (session.isAdmin) {
+    await loadAdminBase();
+    if (adminSub) await loadAdminTokens(adminSub);
+  }
+}
+
+function updateServiceInfo() {
+  const s = services.find((x) => x.id === $("service").value);
+  const info = $("service-info");
+  if (!s) { info.innerHTML = ""; return; }
+  const description = serviceDescription(s);
+  const bits = [];
+  if (description) bits.push(escapeHtml(description));
+  if (s.url) bits.push(`<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.url)}</a>`);
+  info.innerHTML = bits.join(" — ");
+}
+
+function renderServices() {
+  $("svc-list").innerHTML = services.map((s) => {
+    const description = serviceDescription(s);
+    return `
+    <tr>
+      <td>${escapeHtml(s.name)}</td>
+      <td>${description ? escapeHtml(description) : "—"}</td>
+      <td>${s.url ? `<a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.url)}</a>` : "—"}</td>
+    </tr>`;
+  }).join("");
+}
+
+function svcName(id) {
+  const s = services.find((x) => x.id === id);
+  return s ? s.name : id;
+}
+
+async function loadTokens() {
+  const res = await (await fetch("/api/tokens")).json();
+  const tokens = res.tokens || [];
+  $("tok-empty").style.display = tokens.length ? "none" : "block";
+  const dict = I18N[lang] ?? I18N.en;
+  $("tok-list").innerHTML = tokens.map((t) => `
+    <tr>
+      <td>${escapeHtml(svcName(t.svc))}</td>
+      <td>${t.name ? escapeHtml(t.name) : "—"}</td>
+      <td>${new Date(t.iat * 1000).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA")}</td>
+      <td>${new Date(t.exp * 1000).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA")}</td>
+      <td><button class="btn btn-danger" data-jti="${t.jti}">${dict.revoke}</button></td>
+    </tr>`).join("");
+  for (const b of $("tok-list").querySelectorAll("button[data-jti]")) {
+    b.addEventListener("click", async () => {
+      await fetch(`/api/tokens/${b.dataset.jti}/revoke`, { method: "POST" });
+      await loadTokens();
+    });
+  }
+}
+
+$("issue").addEventListener("click", async () => {
+  const res = await fetch("/api/tokens", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ service: $("service").value, ttl_days: Number($("ttl").value) || 30, name: $("name").value.trim() }),
+  });
+  if (!res.ok) {
+    alert((await res.json()).error || I18N[lang].issue.failed);
+    return;
+  }
+  const data = await res.json();
+  $("new-token").style.display = "block";
+  $("new-token-text").textContent = data.token;
+  $("new-exp").textContent = new Date(data.claims.exp * 1000).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA");
+  $("copy").dataset.token = data.token;
+  await loadTokens();
+});
+
+$("copy").addEventListener("click", async () => {
+  if (!$("copy").dataset.token) return;
+  await navigator.clipboard.writeText($("copy").dataset.token);
+  $("copy").textContent = I18N[lang].copied;
+  $("copy").dataset.copied = "1";
+  applyLang();
+  setTimeout(() => { delete $("copy").dataset.copied; applyLang(); }, 1500);
+});
+
+// --- admin panel ------------------------------------------------------
+
+function setAdminStatus(msg) {
+  const s = $("admin-status");
+  s.textContent = msg;
+  s.style.display = "block";
+}
+
+async function loadAdminBase() {
+  const dict = I18N[lang] ?? I18N.en;
+  const users = await (await fetch("/api/admin/users")).json();
+  $("admin-users").innerHTML = (users.users || [])
+    .map((u) => `<option value="${escapeHtml(u)}">`).join("");
+
+  const bl = await (await fetch("/api/admin/blacklist")).json();
+  const manual = bl.users || [];
+  const manualSet = new Set(manual);
+  $("admin-blacklist").innerHTML =
+    manual.map((u) => `
+      <tr>
+        <td>${escapeHtml(u)}</td>
+        <td class="muted">${dict["admin.blacklisted.yes"]}</td>
+        <td><button class="btn" data-unblacklist="${escapeHtml(u)}">${dict["admin.unblacklist"]}</button></td>
+      </tr>`).join("") +
+    (bl.disabled || []).filter((u) => !manualSet.has(u)).map((u) => `
+      <tr>
+        <td>${escapeHtml(u)}</td>
+        <td class="muted">${dict["admin.disabled.yes"]}</td>
+        <td></td>
+      </tr>`).join("");
+  for (const b of $("admin-blacklist").querySelectorAll("button[data-unblacklist]")) {
+    b.addEventListener("click", async () => {
+      const sub = b.dataset.unblacklist;
+      const res = await fetch("/api/admin/blacklist?sub=" + encodeURIComponent(sub), { method: "DELETE" });
+      const data = await res.json();
+      await loadAdminBase();
+      setAdminStatus(
+        data.stillDisabled
+          ? dict["admin.action.stillDisabled"]
+          : dict["admin.action.unblacklisted"].replace("{u}", sub),
+      );
+    });
+  }
+}
+
+async function loadAdminTokens(sub) {
+  adminSub = sub;
+  const wrap = $("admin-tokens-wrap");
+  if (!sub) { wrap.style.display = "none"; return; }
+  const dict = I18N[lang] ?? I18N.en;
+  const res = await (await fetch("/api/admin/tokens?sub=" + encodeURIComponent(sub))).json();
+  const tokens = res.tokens || [];
+  wrap.style.display = "block";
+  $("admin-tokens-title").textContent = dict["admin.tokens.title"] + " " + sub;
+  $("admin-tok-empty").style.display = tokens.length ? "none" : "block";
+  $("admin-tok-list").innerHTML = tokens.map((t) => `
+    <tr>
+      <td>${escapeHtml(svcName(t.svc))}</td>
+      <td>${t.name ? escapeHtml(t.name) : "—"}</td>
+      <td>${new Date(t.iat * 1000).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA")}</td>
+      <td>${new Date(t.exp * 1000).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA")}</td>
+      <td><button class="btn btn-danger" data-admin-jti="${t.jti}">${dict.revoke}</button></td>
+    </tr>`).join("");
+  for (const b of $("admin-tok-list").querySelectorAll("button[data-admin-jti]")) {
+    b.addEventListener("click", async () => {
+      await fetch(`/api/admin/tokens/${b.dataset.adminJti}/revoke`, { method: "POST" });
+      await loadAdminTokens(sub);
+    });
+  }
+}
+
+$("admin-lookup").addEventListener("click", () => loadAdminTokens($("admin-sub").value.trim()));
+$("admin-sub").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") loadAdminTokens($("admin-sub").value.trim());
+});
+
+$("admin-revoke-all").addEventListener("click", async () => {
+  const dict = I18N[lang] ?? I18N.en;
+  const res = await (await fetch(
+    "/api/admin/users/" + encodeURIComponent(adminSub) + "/revoke-all",
+    { method: "POST" },
+  )).json();
+  setAdminStatus(dict["admin.action.revoked"].replace("{n}", String((res.revoked || []).length)));
+  await loadAdminTokens(adminSub);
+});
+
+$("admin-blacklist").addEventListener("click", async () => {
+  const dict = I18N[lang] ?? I18N.en;
+  const res = await fetch("/api/admin/blacklist", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sub: adminSub }),
+  });
+  const data = await res.json();
+  setAdminStatus(
+    dict["admin.action.blacklisted"].replace("{u}", adminSub) +
+    (data.added ? dict["admin.action.added"] : ""),
+  );
+  await loadAdminBase();
+  await loadAdminTokens(adminSub);
+});
+
+refresh();
+</script>
+</body>
+</html>
