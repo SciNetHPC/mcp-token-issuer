@@ -18,6 +18,7 @@ const {
     listIssued,
     revoke,
     initStore,
+    flushStore,
     adminRevoke,
     revokeAllFor,
     isBlacklisted,
@@ -97,7 +98,10 @@ test("wrong version is rejected", () => {
 
 test("issue, list and revoke via the store", async (t) => {
     const dir = await mkdtemp(path.join(tmpdir(), "token-issuer-"));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(async () => {
+        await flushStore();
+        await rm(dir, { recursive: true, force: true });
+    });
     process.env.TOKEN_STORE_PATH = path.join(dir, "store.json");
     await initStore();
 
@@ -115,7 +119,10 @@ test("issue, list and revoke via the store", async (t) => {
 
 test("admin revocation and blacklist via the store", async (t) => {
     const dir = await mkdtemp(path.join(tmpdir(), "token-issuer-admin-"));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(async () => {
+        await flushStore();
+        await rm(dir, { recursive: true, force: true });
+    });
     process.env.TOKEN_STORE_PATH = path.join(dir, "store2.json");
     await initStore();
 
@@ -160,7 +167,10 @@ test("admin revocation and blacklist via the store", async (t) => {
 
 test("automatic disable block revokes, blocks, and clears on restore", async (t) => {
     const dir = await mkdtemp(path.join(tmpdir(), "token-issuer-auto-"));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(async () => {
+        await flushStore();
+        await rm(dir, { recursive: true, force: true });
+    });
     process.env.TOKEN_STORE_PATH = path.join(dir, "store.json");
     await initStore();
 
@@ -191,7 +201,10 @@ test("automatic disable block revokes, blocks, and clears on restore", async (t)
 
 test("manual blacklist survives automatic restore", async (t) => {
     const dir = await mkdtemp(path.join(tmpdir(), "token-issuer-manual-auto-"));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(async () => {
+        await flushStore();
+        await rm(dir, { recursive: true, force: true });
+    });
     process.env.TOKEN_STORE_PATH = path.join(dir, "store.json");
     await initStore();
 
@@ -216,7 +229,10 @@ test("manual blacklist survives automatic restore", async (t) => {
 
 test("an old ordinary blacklist is migrated as manual", async (t) => {
     const dir = await mkdtemp(path.join(tmpdir(), "token-issuer-migrate-"));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(async () => {
+        await flushStore();
+        await rm(dir, { recursive: true, force: true });
+    });
     const storePath = path.join(dir, "store.json");
     process.env.TOKEN_STORE_PATH = storePath;
     await writeFile(storePath, JSON.stringify({

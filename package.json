@@ -1,6 +1,6 @@
 {
   "name": "token-issuer",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Self-service API-token issuer for MCP servers (OIDC login, per-user HMAC tokens).",
   "license": "MIT",
   "type": "module",

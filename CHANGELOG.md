@@ -4,6 +4,22 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for the release tag.
 
+## [0.1.15] - 2026-11-13
+
+### Fixed
+
+- A failed token-store write no longer surfaces as an unhandled rejection,
+  which could terminate the process. The failure is logged, the in-memory
+  state stays marked dirty, and the write is retried after five seconds.
+  `flushStore()` now writes pending state immediately and is used by the tests
+  so their temporary directories are removed deterministically.
+- The secret-scan workflow saved the release archive under a different name
+  than the checksum file referenced, so verification failed. The archive keeps
+  its published name now, and both workflows use the current major versions of
+  `actions/checkout` and `actions/setup-node`.
+
+[0.1.15]: https://github.com/SciNetHPC/mcp-token-issuer/releases/tag/v0.1.15
+
 ## [0.1.14] - 2026-11-13
 
 First public release. The code is the service that runs in SciNet production,

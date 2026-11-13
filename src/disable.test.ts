@@ -12,12 +12,16 @@ const {
     issueToken,
     isAutoBlacklisted,
     isRevoked,
+    flushStore,
 } = await import("./tokens");
 const { syncAccountState, sweepOnce } = await import("./disable");
 
 test("disable check blocks, revokes, and clears on restore", async (t) => {
     const dir = await mkdtemp(path.join(tmpdir(), "token-issuer-disable-"));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(async () => {
+        await flushStore();
+        await rm(dir, { recursive: true, force: true });
+    });
     process.env.TOKEN_STORE_PATH = path.join(dir, "store.json");
     await initStore();
 
@@ -35,7 +39,10 @@ test("disable check blocks, revokes, and clears on restore", async (t) => {
 
 test("an unknown directory state does not clear or apply a block", async (t) => {
     const dir = await mkdtemp(path.join(tmpdir(), "token-issuer-unknown-"));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(async () => {
+        await flushStore();
+        await rm(dir, { recursive: true, force: true });
+    });
     process.env.TOKEN_STORE_PATH = path.join(dir, "store.json");
     await initStore();
 
@@ -50,7 +57,10 @@ test("an unknown directory state does not clear or apply a block", async (t) => 
 
 test("the sweep includes disabled users after their tokens are gone", async (t) => {
     const dir = await mkdtemp(path.join(tmpdir(), "token-issuer-sweep-"));
-    t.after(() => rm(dir, { recursive: true, force: true }));
+    t.after(async () => {
+        await flushStore();
+        await rm(dir, { recursive: true, force: true });
+    });
     process.env.TOKEN_STORE_PATH = path.join(dir, "store.json");
     await initStore();
 

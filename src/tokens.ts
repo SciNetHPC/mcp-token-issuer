@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { config } from "./config";
+import { log } from "./log";
 
 // Token format (shared with the file-mcp server; see README):
 //
@@ -172,19 +173,54 @@ async function loadStore(): Promise<void> {
     }
 }
 
-function persist(): void {
-    storeDirty = true;
-    if (persistTimer) return;
-    persistTimer = setTimeout(async () => {
-        persistTimer = null;
-        if (!storeDirty) return;
-        storeDirty = false;
-        const path_ = storePath();
-        const tmp = `${path_}.tmp`;
+async function writeStore(): Promise<void> {
+    if (!storeDirty) return;
+    storeDirty = false;
+    const path_ = storePath();
+    const tmp = `${path_}.tmp`;
+    try {
         await fs.mkdir(path.dirname(path_), { recursive: true });
         await fs.writeFile(tmp, JSON.stringify(store, null, 2));
         await fs.rename(tmp, path_);
-    }, 200);
+    } catch (e) {
+        // Leave the store dirty so the next mutation or flush retries, and log
+        // rather than letting an unhandled rejection terminate the process.
+        storeDirty = true;
+        log.warn("token store write failed", {
+            error: e instanceof Error ? e.message : String(e),
+        });
+        throw e;
+    }
+}
+
+function scheduleWrite(delayMs: number): void {
+    if (persistTimer) return;
+    persistTimer = setTimeout(() => {
+        persistTimer = null;
+        void writeStore().catch(() => {
+            // writeStore already logged.  Retry slowly so a transient failure
+            // does not spin, and so the on-disk store eventually catches up.
+            scheduleWrite(5000);
+        });
+    }, delayMs);
+}
+
+/**
+ * Write any pending state immediately.  Tests use this so their temporary
+ * directories can be removed deterministically; a graceful shutdown can use it
+ * for the same reason.
+ */
+export async function flushStore(): Promise<void> {
+    if (persistTimer) {
+        clearTimeout(persistTimer);
+        persistTimer = null;
+    }
+    await writeStore();
+}
+
+function persist(): void {
+    storeDirty = true;
+    scheduleWrite(200);
 }
 
 export async function initStore(): Promise<void> {
