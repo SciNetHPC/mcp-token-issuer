@@ -94,8 +94,8 @@ function services(): Service[] {
         {
             id: "status",
             name: "Status MCP",
-            description: "Read-only snapshots of cluster status, node health, and job co-tenancy.",
-            descriptionFr: "Instantanés en lecture seule de l'état de la grappe, de l'état des nœuds et de la cohabitation des tâches.",
+            description: "Read-only snapshots of cluster status, node health, job co-tenancy, and home, scratch, and project storage usage and quotas.",
+            descriptionFr: "Instantanés en lecture seule de l'état de la grappe, de l'état des nœuds, de la cohabitation des tâches et de l'utilisation et des quotas de stockage pour les répertoires home, scratch et project.",
             url: "https://mcp.scinet.utoronto.ca/status",
         },
         {
